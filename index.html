@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="./css/bulma.min.css">
+    <script src="./src/jquery-3.5.0.js"></script>
+    <title>Client Interface</title>
+</head>
+<body>
+
+    <div class="container">
+        <div class="geo" hidden>
+            <h1 class="title">Constraints</h1>
+            <p class="subtitle">
+                Location data permissions must be accepted.
+                Location Must be Within 10,000 metres.
+                Results limited to first 20.
+            </p>
+
+            <button class="button" id="getLoc">Find Closest Parking Meter(s)</button>
+            <table class="table" id="resultTable" hidden>
+                <thead>
+                    <tr>
+                        <th>Parking Number</th>
+                        <th>Parking Number Attached</th>
+                        <th>Parking Type</th>
+                        <th>Street Name</th>
+                        <th>Hourly Rate</th>
+                    </tr>
+                </thead>
+                <tbody>
+
+                </tbody>
+            </table>
+            <div class="error" hidden>
+                <article class="message is-danger">
+                    <div class="message-header">
+                      <p>Error</p>
+                    </div>
+                    <div class="message-body"></div>
+                </article>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="access">
+            <div class="login">
+                <h1 class="title">Login</h1>
+                <p class="subtitle">Login to get your Private Key</p>
+                <form action="" method="post" id="loginForm">
+                    <div class="field">
+                        <div class="control">
+                            <input class="input" type="text" name="user" id="user" required>
+                        </div>
+                    </div>
+
+                    <div class="field">
+                        <div class="control">
+                            <input class="input" type="password" name="password" id="password" required>
+                        </div>
+                    </div>
+
+                    <div class="field">
+                        <div class="control">
+                            <input class="button" type="submit" value="Login">
+                        </div>
+                    </div>
+                </form>
+                <br />
+            </div>
+        
+            <div class="register">
+                <h2 class="title">Register</h2>
+                <p class="subtitle">Register for API access.</p>
+                <form action="" method="post" id="registerForm">
+                    <div class="field">
+                        <div class="control">
+                            <input class="input" type="text" name="newUser" id="newUser">
+                        </div>
+                    </div>
+
+                    <div class="field">
+                        <div class="control">
+                            <input class="input" type="password" name="newPassword" id="newPassword">
+                        </div>
+                    </div>
+
+                    <div class="field">
+                        <div class="control">
+                            <input class="button" type="submit" value="Register">
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <br />
+            <div class="error" hidden>
+                <article class="message is-danger">
+                    <div class="message-header">
+                      <p>Error</p>
+                    </div>
+                    <div class="message-body"></div>
+                </article>
+            </div>
+        </div>
+    </div>
+</body>
+
+
+<script>
+    $(document).ready(function(){
+
+        const options = {
+            enableHighAccuracy: true, 
+            maximumAge: 30000, 
+            timeout: 27000
+        };
+
+        var auth_token = "";
+
+        $("#loginForm").submit(function(e){
+            e.preventDefault();
+
+            let user = $("#user").val();
+            let password = $("#password").val();
+
+            var payload = {
+                username: user,
+                password: password
+            };
+
+            $.ajax({
+                method: "POST",
+                url: "http://localhost:3000/api/user/login",
+                data: JSON.stringify(payload),
+                contentType: "application/json; charset=utf-8",
+                dataType: "json",
+                success: function (data) {
+                    $(".access").hide();
+                    $(".geo").show();
+                    auth_token = data['auth-token'];
+                },
+                error: function (error) {
+                    $(".error").show();
+                    $(".message-body").text(error.responseText);
+                }
+            })
+        });
+
+        $("#registerForm").submit(function(e){
+            e.preventDefault();
+
+            let newUser = $("#newUser").val();
+            let newPass = $("#newPassword").val();
+
+            let payload = {
+                username: newUser,
+                password: newPass
+            };
+
+            $.ajax({
+                method: "POST",
+                url: "http://localhost:3000/api/user/register",
+                data: JSON.stringify(payload),
+                contentType: "application/json; charset=utf-8",
+                dataType: "json",
+                success: function (data) {
+                    $(".access").hide();
+                    $(".geo").show();
+                },
+                error: function (error) {
+                    $(".error").show();
+                    $(".message-body").text(error.responseText);
+                }
+            })
+        });
+
+        $("#getLoc").click(function(){
+
+            $("#getLoc").addClass("is-loading");
+
+            var pos = {
+                longitude: "",
+                latitude: "",
+                max: 10000
+            };
+
+            if('geolocation' in navigator){
+                
+                var getPosition = function(options) {
+                    return new Promise(function (resolve, reject){
+                        navigator.geolocation.getCurrentPosition(resolve, reject, options);
+                    })
+                }
+
+                getPosition()
+                .then((position) => {
+                    pos.latitude = position.coords.latitude;
+                    pos.longitude = position.coords.longitude;
+
+                    $.ajax({
+                        method: "POST",
+                        url: "http://localhost:3000/api/private/near",
+                        data: JSON.stringify(pos),
+                        contentType: "application/json; charset=utf-8",
+                        dataType: "json",
+                        headers: {
+                            "auth-token": auth_token
+                        },
+                        success: function (data) {
+                            var output_data = "";
+                            $.each(data, function(key, value){
+                                output_data += "<tr>";
+                                output_data += "<td>"+value.properties.sNoPlace+"</td>";
+                                output_data += "<td>"+value.properties.sAutreTete+"</td>";
+                                output_data += "<td>"+value.properties.sTypeExploitation+"</td>";
+                                output_data += "<td>"+value.properties.sNomRue+"</td>";
+                                output_data += "<td>"+value.properties.nTarifHoraire+"</td>";
+                                output_data += "</tr>";
+                            });
+
+                            $("#resultTable").append(output_data);
+                            $("#resultTable").show();
+                            $("#getLoc").removeClass("is-loading").hide();
+
+                        },
+                        error: function (error) {
+                            $(".error").show();
+                            $(".message-body").text(error.responseText);
+                        }
+                    });
+                })
+                .catch((error)=>{
+                    console.log(error);
+                })
+            }else{
+                console.log("Gelocation not available.");
+            }
+        });
+    });
+
+</script>
+
+</html>
