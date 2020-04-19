@@ -140,6 +140,7 @@
                     $(".access").hide();
                     $(".geo").show();
                     auth_token = data['auth-token'];
+                    $(".error").hide();
                 },
                 error: function (error) {
                     $(".error").show();
@@ -231,7 +232,7 @@
                         }
                     });
                 })
-                .catch((error)=>{
+                .catch((error) => {
                     console.log(error);
                 })
             }else{
