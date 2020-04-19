@@ -17,7 +17,7 @@
                 Location Must be Within 10,000 metres.
                 Results limited to first 20.
             </p>
-
+            <input class="input" id="maxDistance" value="30" required>
             <button class="button" id="getLoc">Find Closest Parking Meter(s)</button>
             <table class="table" id="resultTable" hidden>
                 <thead>
@@ -181,12 +181,6 @@
 
             $("#getLoc").addClass("is-loading");
 
-            var pos = {
-                longitude: "",
-                latitude: "",
-                max: 10000
-            };
-
             if('geolocation' in navigator){
                 
                 var getPosition = function(options) {
@@ -197,20 +191,23 @@
 
                 getPosition()
                 .then((position) => {
-                    pos.latitude = position.coords.latitude;
-                    pos.longitude = position.coords.longitude;
+
+                    let query_url = "http://localhost:3000/api/private/near?";
+
+                    query_url += 
+                    "latitude="+position.coords.latitude 
+                    + "&longitude="+position.coords.longitude+"&max=" 
+                    + $("#maxDistance").val();
 
                     $.ajax({
-                        method: "POST",
-                        url: "http://localhost:3000/api/private/near",
-                        data: JSON.stringify(pos),
-                        contentType: "application/json; charset=utf-8",
-                        dataType: "json",
+                        method: "GET",
+                        url: query_url,
                         headers: {
                             "auth-token": auth_token
                         },
                         success: function (data) {
                             var output_data = "";
+
                             $.each(data, function(key, value){
                                 output_data += "<tr>";
                                 output_data += "<td>"+value.properties.sNoPlace+"</td>";
@@ -223,7 +220,7 @@
 
                             $("#resultTable").append(output_data);
                             $("#resultTable").show();
-                            $("#getLoc").removeClass("is-loading").hide();
+                            $("#getLoc").removeClass("is-loading");
 
                         },
                         error: function (error) {
