@@ -14,11 +14,29 @@
             <h1 class="title">Constraints</h1>
             <p class="subtitle">
                 Location data permissions must be accepted.
-                Location Must be Within 10,000 metres.
-                Results limited to first 20.
+
             </p>
-            <input class="input" id="maxDistance" value="30" required>
-            <button class="button" id="getLoc">Find Closest Parking Meter(s)</button>
+            <label for "maxDistance">Max Distance (Kilometers)</label><br>
+            <input class="input" id="maxDistance" value="10" style='width:20em' type="number" required >
+            <br>
+            <br>
+            <label for="limit">Number of Results:</label><br>
+            <select id="limit" class="input" style='width:20em' required>>
+                <option value="20" selected>20</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+                <option value ="0">All</option>
+            </select>
+            <br>
+            <br>
+            <input type="checkbox" id="formatJson">
+            <label for="formatJson" class="checkbox">JSON</label>
+            <br>
+            <button class="button" id="getLoc">Find Closest Parking Kilometer(s)</button>
+            <br>
+            
+            <pre id="jsonData" hidden> </pre>
+
             <table class="table" id="resultTable" hidden>
                 <thead>
                     <tr>
@@ -27,12 +45,15 @@
                         <th>Parking Type</th>
                         <th>Street Name</th>
                         <th>Hourly Rate</th>
+                        <th>Coordinates</th>
+                        <th>Distance</th>
                     </tr>
                 </thead>
-                <tbody>
-
+                <tbody id="parking-list">
+                
                 </tbody>
             </table>
+            <div class=>
             <div class="error" hidden>
                 <article class="message is-danger">
                     <div class="message-header">
@@ -52,13 +73,13 @@
                 <form action="" method="post" id="loginForm">
                     <div class="field">
                         <div class="control">
-                            <input class="input" type="text" name="user" id="user" required>
+                            <input class="input" type="text" name="user" id="user" style='width:20em' required>
                         </div>
                     </div>
 
                     <div class="field">
                         <div class="control">
-                            <input class="input" type="password" name="password" id="password" required>
+                            <input class="input" type="password" name="password" id="password" style='width:20em' required>
                         </div>
                     </div>
 
@@ -77,13 +98,13 @@
                 <form action="" method="post" id="registerForm">
                     <div class="field">
                         <div class="control">
-                            <input class="input" type="text" name="newUser" id="newUser">
+                            <input class="input" type="text" name="newUser" id="newUser" style='width:20em'>
                         </div>
                     </div>
 
                     <div class="field">
                         <div class="control">
-                            <input class="input" type="password" name="newPassword" id="newPassword">
+                            <input class="input" type="password" name="newPassword" id="newPassword" style='width:20em'>
                         </div>
                     </div>
 
@@ -109,6 +130,25 @@
 
 
 <script>
+        //Haversein formula for calculating kmBetweenPoints
+        function kmBetweenPoints(lat1, lon1, lat2, lon2) {
+
+            var toRad = function(deg) {
+            return deg * Math.PI / 180;
+            };
+            var earthRadius = 6371;
+
+            var distLat = toRad(lat2-lat1);
+            var distLon = toRad(lon2-lon1);
+
+            lat1 = toRad(lat1);
+            lat2 = toRad(lat2);
+
+            var a = Math.sin(distLat/2) * Math.sin(distLat/2) + Math.sin(distLon/2) * Math.sin(distLon/2) * Math.cos(lat1) * Math.cos(lat2); 
+            var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+            return Number.parseFloat(earthRadius * c).toFixed(3);
+            }
+
     $(document).ready(function(){
 
         const options = {
@@ -189,16 +229,18 @@
                     })
                 }
 
-                getPosition()
-                .then((position) => {
+                getPosition().then((position) => {
 
                     let query_url = "http://localhost:3000/api/private/near?";
-
+                    let maxMeters = parseInt($("#maxDistance").val())*1000;
+                    let currentLat = position.coords.latitude;
+                    let currentLon = position.coords.longitude;
                     query_url += 
-                    "latitude="+position.coords.latitude 
-                    + "&longitude="+position.coords.longitude+"&max=" 
-                    + $("#maxDistance").val();
-
+                    "latitude=" + currentLat 
+                    + "&longitude=" + currentLon
+                    +"&max=" + maxMeters
+                    + "&limit=" + $("#limit").val();
+                    console.log(query_url)
                     $.ajax({
                         method: "GET",
                         url: query_url,
@@ -208,19 +250,34 @@
                         success: function (data) {
                             var output_data = "";
 
-                            $.each(data, function(key, value){
-                                output_data += "<tr>";
-                                output_data += "<td>"+value.properties.sNoPlace+"</td>";
-                                output_data += "<td>"+value.properties.sAutreTete+"</td>";
-                                output_data += "<td>"+value.properties.sTypeExploitation+"</td>";
-                                output_data += "<td>"+value.properties.sNomRue+"</td>";
-                                output_data += "<td>"+value.properties.nTarifHoraire+"</td>";
-                                output_data += "</tr>";
-                            });
-
-                            $("#resultTable").append(output_data);
-                            $("#resultTable").show();
-                            $("#getLoc").removeClass("is-loading");
+                            let checked = $("#formatJson").prop("checked")
+                            if(checked){
+                                $("#resultTable").hide();
+                                $("#jsonData").text(JSON.stringify(data,null,2));
+                                $("#jsonData").show();
+                                $("#getLoc").removeClass("is-loading");
+                            }
+                            else{
+                                $("#jsonData").hide();
+                                $.each(data, function(key, value){
+                                    let pointLon = value.properties.nPositionCentreLongitude;
+                                    let pointLat = value.properties.nPositionCentreLatitude;
+                                    output_data += 
+                                    "<tr>"
+                                    + "<td>"+value.properties.sNoPlace+"</td>"
+                                    + "<td>"+value.properties.sAutreTete+"</td>"
+                                    + "<td>"+value.properties.sTypeExploitation+"</td>"
+                                    + "<td>"+value.properties.sNomRue+"</td>"
+                                    + "<td>"+value.properties.nTarifHoraire+"</td>"
+                                    + "<td>["+pointLon+" , "+pointLat+"]</td>"
+                                    + "<td>"+kmBetweenPoints(currentLat, currentLon, pointLat, pointLon)+" km</td>"
+                                    + "</tr>";
+                                    });
+                                    $("#parking-list").html(output_data);
+                                    $("#resultTable").show();
+                                    $("#getLoc").removeClass("is-loading");
+                                }
+                        
 
                         },
                         error: function (error) {
